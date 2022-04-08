@@ -458,7 +458,7 @@ impl<'a, U: Copy + Clone> Layout<U> {
             } else {
                 Metrics::default()
             };
-            let advance = ceil(metrics.advance_width);
+            let advance = metrics.advance_width;
 
             if linebreak >= self.linebreak_prev {
                 self.linebreak_prev = linebreak;
@@ -491,9 +491,9 @@ impl<'a, U: Copy + Clone> Layout<U> {
             }
 
             let y = if self.flip {
-                floor(-metrics.bounds.height - metrics.bounds.ymin) // PositiveYDown
+                -metrics.bounds.height - metrics.bounds.ymin // PositiveYDown
             } else {
-                floor(metrics.bounds.ymin) // PositiveYUp
+                metrics.bounds.ymin // PositiveYUp
             };
 
             self.glyphs.push(GlyphPosition {
@@ -505,7 +505,7 @@ impl<'a, U: Copy + Clone> Layout<U> {
                 font_index: style.font_index,
                 parent: character,
                 byte_offset: prev_byte_offset,
-                x: floor(self.current_pos + metrics.bounds.xmin),
+                x: self.current_pos + metrics.bounds.xmin,
                 y,
                 width: metrics.width,
                 height: metrics.height,
