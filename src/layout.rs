@@ -458,7 +458,7 @@ impl<'a, U: Copy + Clone> Layout<U> {
             } else {
                 Metrics::default()
             };
-            let advance = floor(metrics.advance_width);
+            let advance = metrics.advance_width;
 
             if linebreak >= self.linebreak_prev {
                 self.linebreak_prev = linebreak;
