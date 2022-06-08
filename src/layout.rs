@@ -255,6 +255,10 @@ pub struct Layout<U: Copy + Clone = ()> {
     wrap_mask: LinebreakData,
     /// The max width of the region text is being laid out in.
     max_width: f32,
+    /// A max width value that is meant to override the "default" max_width, if present.
+    /// This is intended for when we want a particular line to linebreak based on a temporary
+    /// max width instead within a layout pass.
+    override_max_width: Option<f32>,
     /// The max height of the region text is being laid out in.
     max_height: f32,
     /// A multiplier for how text fills unused vertical space.
@@ -313,6 +317,7 @@ impl<'a, U: Copy + Clone> Layout<U> {
             y: 0.0,
             wrap_mask: LINEBREAK_NONE,
             max_width: 0.0,
+            override_max_width: None,
             max_height: 0.0,
             vertical_align: 0.0,
             horizontal_align: 0.0,
@@ -335,6 +340,12 @@ impl<'a, U: Copy + Clone> Layout<U> {
         };
         layout.reset(&settings);
         layout
+    }
+
+    /// Helper functions to introduce a slightly hacky workaround to allow
+    /// for proper text wrapping when text is indented.
+    pub fn set_override_max_width(&mut self, width: Option<f32>) {
+        self.override_max_width = width;
     }
 
     /// Resets the current layout settings and clears all appended text.
@@ -447,6 +458,7 @@ impl<'a, U: Copy + Clone> Layout<U> {
         }
 
         let mut byte_offset = 0;
+        let override_max_width = self.override_max_width.take().unwrap_or(self.max_width);
         while byte_offset < style.text.len() {
             let prev_byte_offset = byte_offset;
             let character = read_utf8(style.text.as_bytes(), &mut byte_offset);
@@ -467,11 +479,16 @@ impl<'a, U: Copy + Clone> Layout<U> {
             }
 
             // Perform a linebreak
-            if linebreak.is_hard() || (self.current_pos - self.start_pos + advance > self.max_width) {
+            if linebreak.is_hard() || (self.current_pos - self.start_pos + advance > override_max_width) {
                 self.linebreak_prev = LINEBREAK_NONE;
                 let mut next_glyph_start = self.glyphs().len();
                 if let Some(line) = self.line_metrics.last_mut() {
                     line.glyph_end = self.linebreak_idx;
+                    // Notice that the padding for the current line is not override_max_width
+                    // This is to avoid changes to the max width on the new line we want to create
+                    // affecting padding on the previous (current) line
+                    // i.e when nesting indentations on a line, using override_max_width will
+                    // cause the previous line to shift as well
                     line.padding = self.max_width - (self.linebreak_pos - self.start_pos);
                     self.height += line.max_new_line_size * self.line_height;
                     next_glyph_start = self.linebreak_idx + 1;
@@ -516,7 +533,7 @@ impl<'a, U: Copy + Clone> Layout<U> {
         }
 
         if let Some(line) = self.line_metrics.last_mut() {
-            line.padding = self.max_width - (self.current_pos - self.start_pos);
+            line.padding = override_max_width - (self.current_pos - self.start_pos);
             line.glyph_end = self.glyphs.len().saturating_sub(1);
         }
 
